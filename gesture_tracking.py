@@ -35,9 +35,18 @@ while cap.isOpened():
     results = hands.process(image_rgb)
 
     if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            draw_landmarks.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            check_movement(hand_landmarks)
+        # ------ draw all key points -----
+        # for hand_landmarks in results.multi_hand_landmarks:
+            # draw_landmarks.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            # check_movement(hand_landmarks)
+
+        # individual key
+        for i in range(len(results.multi_hand_landmarks[0].landmark)):
+            point = results.multi_hand_landmarks[0].landmark[i]
+            x = int(point.x*frame.shape[0])
+            y = int(point.y*frame.shape[1])
+            # frame = cv2.circle(frame, (x,y), radius=5, color=(0, 0, 255), thickness=-1)
+            frame = cv2.putText(frame, str(i), (x,y), 0, 1, (0,0,255), 1)
 
     cv2.imshow('Hand movement detection', frame)
 
