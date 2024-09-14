@@ -1,11 +1,14 @@
 import pygame, sys
 from pygame.locals import *
 import random, time
-import cv2
 import mediapipe as mp
+import pygame.camera
+import numpy as np
+import cv2
 
-# Initializing pygame
+# Initializing pygame and camera
 pygame.init()
+pygame.camera.init()
 
 # Setting up FPS 
 FPS = 60
@@ -21,6 +24,10 @@ WHITE = (255, 255, 255)
 # Other Variables for use in the program
 SCREEN_WIDTH = 400
 SCREEN_HEIGHT = 600
+CAM_FEED_WIDTH = 200  # Width of the webcam feed area
+CAM_FEED_HEIGHT = 150  # Height of the webcam feed area
+TOTAL_WIDTH = SCREEN_WIDTH + CAM_FEED_WIDTH  # Add width for webcam feed
+
 SPEED = 5
 SCORE = 0
 
@@ -29,18 +36,19 @@ font = pygame.font.SysFont("Verdana", 60)
 font_small = pygame.font.SysFont("Verdana", 30)
 game_over = font.render("Game Over", True, BLACK)
 
-# Create a white screen 
-DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-DISPLAYSURF.fill(WHITE)
-pygame.display.set_caption("Game")
+
+# Update display to accommodate the webcam feed area
+DISPLAYSURF = pygame.display.set_mode((TOTAL_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Game with Webcam Feed")
 
 # MediaPipe Hand Detection setup
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
 mp_drawing = mp.solutions.drawing_utils
 
-# OpenCV video capture (for hand tracking)
-cap = cv2.VideoCapture(0)
+# Initialize the camera and set up the feed size
+cam = pygame.camera.Camera(pygame.camera.list_cameras()[0], (640, 480))
+cam.start()
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self):
@@ -118,17 +126,19 @@ pygame.time.set_timer(INC_SPEED, 1000)
 
 # Game Loop
 while True:
-    # OpenCV: Capture frame-by-frame
-    ret, frame = cap.read()
-    if not ret:
-        break
+    # Get an image from the camera
+    cam_frame = cam.get_image()
 
-    # Flip the frame horizontally (optional for a mirrored view)
-    frame = cv2.flip(frame, 1)
+    # Flip the frame horizontally (mirror effect)
+    frame = pygame.transform.flip(cam_frame, True, False)
 
-    # Convert the BGR frame to RGB for MediaPipe processing
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb_frame)
+    # Convert the frame to RGB array for MediaPipe processing
+    frame_rgb = pygame.surfarray.array3d(frame)
+    frame_rgb = frame_rgb.swapaxes(0, 1)  # Convert from pygame to MediaPipe format
+
+    # Process the frame with MediaPipe
+    result = hands.process(frame_rgb)
+    
 
     hand_x = 0.5  # Default to center if no hand is detected
     if result.multi_hand_landmarks:
@@ -137,8 +147,12 @@ while True:
             index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
             hand_x = index_finger_tip.x  # Normalized x-coordinate (0 to 1)
 
-            # Optional: Draw hand landmarks on the frame
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+            mp_drawing.draw_landmarks(frame_bgr, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_RGB2BGR)
+            img_ccw = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            frame = pygame.surfarray.make_surface(img_ccw)
+            frame = pygame.transform.flip(frame, True, False)
 
     # Update game display and logic
     for event in pygame.event.get():
@@ -148,11 +162,18 @@ while True:
             pygame.quit()
             sys.exit()
 
-    DISPLAYSURF.fill(WHITE)
+    # Fill the game display with white (playable area)
+    DISPLAYSURF.fill(WHITE, pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    # Display the score
     scores = font.render('Score: ' + str(SCORE), True, BLACK)
     DISPLAYSURF.blit(scores, (10, 10))
 
-    # Moves and Re-draws all Sprites
+    # Display the webcam feed in the non-playable area (right side of the screen)
+    webcam_feed = pygame.transform.scale(frame, (CAM_FEED_WIDTH, CAM_FEED_HEIGHT))
+    DISPLAYSURF.blit(webcam_feed, (SCREEN_WIDTH, SCREEN_HEIGHT - CAM_FEED_HEIGHT))
+
+    # Moves and Re-draws all Sprites within the playable area
     DISPLAYSURF.blit(E1.image, E1.rect)
     E1.move()
     DISPLAYSURF.blit(P1.image, P1.rect)
@@ -162,15 +183,14 @@ while True:
     if pygame.sprite.spritecollideany(P1, enemies):
         time.sleep(0.5)
 
-        DISPLAYSURF.fill(RED)
+        DISPLAYSURF.fill(RED, pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))  # Fill only the playable area with red
         game_over_rect = game_over.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 10))
         DISPLAYSURF.blit(game_over, game_over_rect)
         final_scores = font_small.render('Final Score: ' + str(SCORE), True, BLACK)
         final_scores_rect = final_scores.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 40))
         DISPLAYSURF.blit(final_scores, final_scores_rect)
         
-
-        # Draw restart button
+        # Draw restart button in the game area
         button_rect = draw_restart_button()
         pygame.display.update()
 
@@ -189,12 +209,3 @@ while True:
 
     pygame.display.update()
     FramePerSec.tick(FPS)
-
-    # Show OpenCV frame with hand tracking (for visualization)
-    cv2.imshow('Hand Tracking', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Release OpenCV resources
-cap.release()
-cv2.destroyAllWindows()

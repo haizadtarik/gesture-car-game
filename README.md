@@ -21,6 +21,11 @@ Simple game developed using pygame where player controlling car to avoid cone us
     python gesture_control.py
     ```
 
+4. Run game with mouse control
+    ```
+    python mouse_control.py
+    ```
+
 
 ## References
 1. [Car Game using PyGame](https://coderslegacy.com/python/python-pygame-tutorial/)
