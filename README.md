@@ -1,6 +1,6 @@
 # Car obstacle avoidance using PyGame
 
-simple game developed using pygame where player controlling car to avoid cone using keyboard or gesture
+Simple game developed using pygame where player controlling car to avoid cone using keyboard, mouse or hand gesture
 
 ## Run locally
 

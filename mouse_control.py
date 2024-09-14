@@ -1,10 +1,8 @@
 import pygame, sys
 from pygame.locals import *
 import random, time
-import cv2
-import mediapipe as mp
 
-# Initializing pygame
+# Initializing 
 pygame.init()
 
 # Setting up FPS 
@@ -26,21 +24,13 @@ SCORE = 0
 
 # Setting up Fonts
 font = pygame.font.SysFont("Verdana", 60)
-font_small = pygame.font.SysFont("Verdana", 30)
+font_small = pygame.font.SysFont("Verdana", 20)
 game_over = font.render("Game Over", True, BLACK)
 
 # Create a white screen 
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 DISPLAYSURF.fill(WHITE)
 pygame.display.set_caption("Game")
-
-# MediaPipe Hand Detection setup
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
-mp_drawing = mp.solutions.drawing_utils
-
-# OpenCV video capture (for hand tracking)
-cap = cv2.VideoCapture(0)
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self):
@@ -64,10 +54,10 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (160, 520)
 
-    def move(self, hand_x):
-        # Map hand x-coordinate to the screen width
-        self.rect.centerx = int(hand_x * SCREEN_WIDTH)
-
+    def move(self):
+        mouse_x, _ = pygame.mouse.get_pos()  # Get the x-coordinate of the mouse
+        self.rect.centerx = mouse_x  # Set the car's center x position to the mouse x position
+        
         # Keep the car within the screen boundaries
         if self.rect.left < 0:
             self.rect.left = 0
@@ -118,29 +108,7 @@ pygame.time.set_timer(INC_SPEED, 1000)
 
 # Game Loop
 while True:
-    # OpenCV: Capture frame-by-frame
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # Flip the frame horizontally (optional for a mirrored view)
-    frame = cv2.flip(frame, 1)
-
-    # Convert the BGR frame to RGB for MediaPipe processing
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb_frame)
-
-    hand_x = 0.5  # Default to center if no hand is detected
-    if result.multi_hand_landmarks:
-        for hand_landmarks in result.multi_hand_landmarks:
-            # Get the x-coordinate of the index finger tip (landmark 8)
-            index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-            hand_x = index_finger_tip.x  # Normalized x-coordinate (0 to 1)
-
-            # Optional: Draw hand landmarks on the frame
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-
-    # Update game display and logic
+    # Cycles through all events occurring  
     for event in pygame.event.get():
         if event.type == INC_SPEED:
             SPEED += 0.5     
@@ -153,10 +121,9 @@ while True:
     DISPLAYSURF.blit(scores, (10, 10))
 
     # Moves and Re-draws all Sprites
-    DISPLAYSURF.blit(E1.image, E1.rect)
-    E1.move()
-    DISPLAYSURF.blit(P1.image, P1.rect)
-    P1.move(hand_x)
+    for entity in all_sprites:
+        DISPLAYSURF.blit(entity.image, entity.rect)
+        entity.move()
 
     # To be run if collision occurs between Player and Enemy
     if pygame.sprite.spritecollideany(P1, enemies):
@@ -189,12 +156,3 @@ while True:
 
     pygame.display.update()
     FramePerSec.tick(FPS)
-
-    # Show OpenCV frame with hand tracking (for visualization)
-    cv2.imshow('Hand Tracking', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Release OpenCV resources
-cap.release()
-cv2.destroyAllWindows()

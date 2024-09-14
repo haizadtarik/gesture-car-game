@@ -65,7 +65,34 @@ class Player(pygame.sprite.Sprite):
         if self.rect.right < SCREEN_WIDTH:        
               if pressed_keys[K_RIGHT]:
                   self.rect.move_ip(5, 0)
-                   
+
+# Function to restart the game
+def restart_game():
+    global SPEED, SCORE, enemies, all_sprites, E1, P1
+    SPEED = 5
+    SCORE = 0
+    E1 = Enemy()
+    P1 = Player()
+    enemies = pygame.sprite.Group()
+    enemies.add(E1)
+    all_sprites = pygame.sprite.Group()
+    all_sprites.add(P1)
+    all_sprites.add(E1)
+
+# Function to create the restart button
+def draw_restart_button():
+    restart_text = font_small.render("Restart", True, BLACK)
+    restart_text_rect = restart_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 100))
+    padding = 10
+    rect_width = restart_text_rect.width + padding * 2
+    rect_height = restart_text_rect.height + padding * 2
+    rect_x = restart_text_rect.x - padding
+    rect_y = restart_text_rect.y - padding
+    button_rect = pygame.Rect(rect_x, rect_y, rect_width, rect_height)
+    pygame.draw.rect(DISPLAYSURF, GREEN, button_rect)
+    DISPLAYSURF.blit(restart_text, restart_text_rect)
+    return button_rect
+                  
 #Setting up Sprites        
 P1 = Player()
 E1 = Enemy()
@@ -103,19 +130,32 @@ while True:
  
     #To be run if collision occurs between Player and Enemy
     if pygame.sprite.spritecollideany(P1, enemies):
-          time.sleep(0.5)
+        time.sleep(0.5)
                     
-          DISPLAYSURF.fill(RED)
-          DISPLAYSURF.blit(game_over, (40,250))
-          final_scores = font.render('Final Score: ' + str(SCORE), True, BLACK)
-          DISPLAYSURF.blit(final_scores, (10,350))
-           
-          pygame.display.update()
-          for entity in all_sprites:
-                entity.kill() 
-          time.sleep(3)
-          pygame.quit()
-          sys.exit()        
+        DISPLAYSURF.fill(RED)
+        game_over_rect = game_over.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 10))
+        DISPLAYSURF.blit(game_over, game_over_rect)
+        final_scores = font_small.render('Final Score: ' + str(SCORE), True, BLACK)
+        final_scores_rect = final_scores.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 40))
+        DISPLAYSURF.blit(final_scores, final_scores_rect)
+        
+
+        # Draw restart button
+        button_rect = draw_restart_button()
+        pygame.display.update()
+
+        # Wait for the player to click the restart button
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == MOUSEBUTTONDOWN:
+                    if button_rect.collidepoint(event.pos):
+                        restart_game()
+                        waiting = False
+                        break       
          
     pygame.display.update()
     FramePerSec.tick(FPS)
