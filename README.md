@@ -13,17 +13,17 @@ Simple game developed using pygame where player controlling car to avoid cone us
 
 2. Run game with keyboard control
     ```
-    python keyboard_control.py
+    python main.py keyboard
     ```
 
 3. Run game with gesture control
     ```
-    python gesture_control.py
+    python main.py gesture
     ```
 
 4. Run game with mouse control
     ```
-    python mouse_control.py
+    python main.py mouse
     ```
 
 
