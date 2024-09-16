@@ -44,6 +44,8 @@ pygame.display.set_caption("Game")
 # MediaPipe Hand Detection setup
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+mp_face = mp.solutions.face_detection
+face = mp_face.FaceDetection(min_detection_confidence=0.7)
 mp_drawing = mp.solutions.drawing_utils
 
 # Initialize the camera and set up the feed size
@@ -75,6 +77,16 @@ class Player(pygame.sprite.Sprite):
     def move_gesture(self, hand_x):
         # Map hand x-coordinate to the screen width
         self.rect.centerx = int(hand_x * SCREEN_WIDTH)
+
+        # Keep the car within the screen boundaries
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+
+    def move_face(self, face_x):
+        # Map hand x-coordinate to the screen width
+        self.rect.centerx = int(face_x * SCREEN_WIDTH)
 
         # Keep the car within the screen boundaries
         if self.rect.left < 0:
@@ -147,12 +159,12 @@ def main(control: str):
 
 
     control = control.lower()
-    if control not in ('keyboard', 'mouse', 'gesture'):
+    if control not in ('keyboard', 'mouse', 'gesture', 'face'):
         raise Exception("Please choose either 'keyboard', 'mouse' or 'gesture'")
     
     # Game Loop
     while True:
-        if control == 'gesture':
+        if (control == 'gesture') or (control == 'face'):
             # Get an image from the camera
             cam_frame = cam.get_image()
             # Flip the frame horizontally (mirror effect)
@@ -160,21 +172,39 @@ def main(control: str):
             # Convert the frame to RGB array for MediaPipe processing
             frame_rgb = pygame.surfarray.array3d(frame)
             frame_rgb = frame_rgb.swapaxes(0, 1)  # Convert from pygame to MediaPipe format
-            # Process the frame with MediaPipe
-            result = hands.process(frame_rgb)
-            hand_x = 0.5  # Default to center if no hand is detected
-            if result.multi_hand_landmarks:
-                for hand_landmarks in result.multi_hand_landmarks:
-                    # Get the x-coordinate of the index finger tip (landmark 8)
-                    index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-                    hand_x = index_finger_tip.x  # Normalized x-coordinate (0 to 1)
 
-                    frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
-                    mp_drawing.draw_landmarks(frame_bgr, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-                    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_RGB2BGR)
-                    img_ccw = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                    frame = pygame.surfarray.make_surface(img_ccw)
-                    frame = pygame.transform.flip(frame, True, False)
+            if control == 'face':
+                result = face.process(frame_rgb)
+                face_x = 0.5
+                if result.detections:
+                    for face_landmarks in result.detections:
+                        # Get the x-coordinate of the index finger tip (landmark 8)
+                        nose_tip = mp_face.get_key_point(face_landmarks, mp_face.FaceKeyPoint.NOSE_TIP)
+                        face_x = nose_tip.x  # Normalized x-coordinate (0 to 1)
+
+                        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+                        mp_drawing.draw_detection(frame_bgr, face_landmarks)
+                        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_RGB2BGR)
+                        img_ccw = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                        frame = pygame.surfarray.make_surface(img_ccw)
+                        frame = pygame.transform.flip(frame, True, False)
+
+            if control == 'gesture':
+                # Process the frame with MediaPipe
+                result = hands.process(frame_rgb)
+                hand_x = 0.5  # Default to center if no hand is detected
+                if result.multi_hand_landmarks:
+                    for hand_landmarks in result.multi_hand_landmarks:
+                        # Get the x-coordinate of the index finger tip (landmark 8)
+                        index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+                        hand_x = index_finger_tip.x  # Normalized x-coordinate (0 to 1)
+
+                        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+                        mp_drawing.draw_landmarks(frame_bgr, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_RGB2BGR)
+                        img_ccw = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                        frame = pygame.surfarray.make_surface(img_ccw)
+                        frame = pygame.transform.flip(frame, True, False)
 
         # Update game display and logic
         for event in pygame.event.get():
@@ -191,7 +221,7 @@ def main(control: str):
         scores = font.render('Score: ' + str(SCORE), True, BLACK)
         DISPLAYSURF.blit(scores, (10, 10))
 
-        if control == 'gesture':
+        if (control == 'gesture') or (control == 'face'):
             # Display the webcam feed in the non-playable area (right side of the screen)
             webcam_feed = pygame.transform.scale(frame, (CAM_FEED_WIDTH, CAM_FEED_HEIGHT))
             DISPLAYSURF.blit(webcam_feed, (SCREEN_WIDTH, SCREEN_HEIGHT - CAM_FEED_HEIGHT))
@@ -206,8 +236,8 @@ def main(control: str):
             P1.move_keyboard()
         elif control == 'mouse':
             P1.move_mouse()
-        else:
-            raise Exception("Invalid control method. Please choose either 'keyboard', 'mouse' or 'gesture'")
+        elif control == 'face':
+            P1.move_face(face_x)
 
         # To be run if collision occurs between Player and Enemy
         if pygame.sprite.spritecollideany(P1, enemies):
